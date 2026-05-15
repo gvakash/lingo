@@ -1,0 +1,48 @@
+# Core ML
+torch>=2.0.0
+torchaudio>=2.0.0
+openai-whisper>=20231117
+transformers>=4.36.0
+accelerate>=0.25.0
+
+# Audio Processing
+librosa>=0.10.1
+soundfile>=0.12.1
+pydub>=0.25.1
+noisereduce>=3.0.0
+pyannote.audio>=3.1.1
+
+# API & Backend
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.6
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Data & Utils
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.11.0
+matplotlib>=3.7.0
+seqeval>=1.2.2
+jiwer>=3.0.3
+
+# Pipeline & Storage
+redis>=5.0.0
+celery>=5.3.0
+flower>=2.0.0
+aiofiles>=23.2.1
+httpx>=0.26.0
+tenacity>=8.2.0
+
+# CLI & Logging
+typer>=0.9.0
+rich>=13.7.0
+loguru>=0.7.2
+tqdm>=4.66.0
+
+# Dev & Testing
+pytest>=7.4.0
+pytest-asyncio>=0.23.0
+black>=23.12.0
+ruff>=0.1.9

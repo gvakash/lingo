@@ -1,0 +1,9 @@
+lingoenv/
+lingoenv/
+__pycache__/
+*.pyc
+data/raw/*
+data/processed/*
+data/outputs/*
+.env
+.DS_Store
