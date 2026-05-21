@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lingo Speech Pipeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050508;
+    --surface: #0d0d14;
+    --surface2: #13131e;
+    --border: #1e1e2e;
+    --accent: #7c6aff;
+    --accent2: #ff6a9e;
+    --accent3: #6affcc;
+    --text: #e8e8f0;
+    --muted: #6b6b80;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(124,106,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124,106,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .glow {
+    position: fixed;
+    width: 600px; height: 600px;
+    border-radius: 50%;
+    filter: blur(120px);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .glow-1 { background: rgba(124,106,255,0.08); top: -200px; left: -200px; }
+  .glow-2 { background: rgba(106,255,204,0.05); bottom: -200px; right: -200px; }
+
+  /* Header */
+  header {
+    position: relative;
+    z-index: 10;
+    padding: 24px 40px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .logo-mark {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+
+  .logo-text {
+    font-family: var(--sans);
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: -0.5px;
+  }
+
+  .logo-sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  .header-right {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 4px 10px;
+    border-radius: 100px;
+    border: 1px solid;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .badge-green { color: var(--accent3); border-color: rgba(106,255,204,0.3); background: rgba(106,255,204,0.05); }
+  .badge-purple { color: var(--accent); border-color: rgba(124,106,255,0.3); background: rgba(124,106,255,0.05); }
+
+  /* Layout */
+  .app {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 420px 1fr;
+    min-height: calc(100vh - 73px);
+  }
+
+  /* Left Panel */
+  .panel-left {
+    border-right: 1px solid var(--border);
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  /* Upload Zone */
+  .upload-zone {
+    border: 1px dashed rgba(124,106,255,0.4);
+    border-radius: 12px;
+    padding: 40px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: rgba(124,106,255,0.02);
+    position: relative;
+    overflow: hidden;
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(124,106,255,0.06);
+  }
+  .upload-zone input { display: none; }
+
+  .upload-icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+    display: block;
+    opacity: 0.7;
+  }
+
+  .upload-title {
+    font-weight: 600;
+    font-size: 15px;
+    margin-bottom: 6px;
+  }
+  .upload-sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* Audio preview */
+  .audio-preview {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    gap: 12px;
+    flex-direction: column;
+  }
+  .audio-preview.visible { display: flex; }
+
+  .audio-file-name {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .audio-player { width: 100%; height: 32px; }
+  audio { width: 100%; accent-color: var(--accent); }
+
+  /* Config Panel */
+  .config-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .toggle-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    font-size: 13px;
+  }
+  .toggle-item:hover { border-color: rgba(124,106,255,0.4); }
+  .toggle-item input { display: none; }
+
+  .toggle-dot {
+    width: 28px; height: 16px;
+    background: var(--border);
+    border-radius: 100px;
+    position: relative;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .toggle-dot::after {
+    content: '';
+    position: absolute;
+    width: 10px; height: 10px;
+    background: white;
+    border-radius: 50%;
+    top: 3px; left: 3px;
+    transition: transform 0.2s;
+  }
+  .toggle-item.active .toggle-dot { background: var(--accent); }
+  .toggle-item.active .toggle-dot::after { transform: translateX(12px); }
+
+  .select-field {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+    width: 100%;
+    appearance: none;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .select-field:focus { border-color: var(--accent); }
+
+  .field-wrap { display: flex; flex-direction: column; gap: 6px; }
+
+  /* Run Button */
+  .run-btn {
+    background: linear-gradient(135deg, var(--accent), #a06aff);
+    border: none;
+    color: white;
+    padding: 14px 24px;
+    border-radius: 10px;
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+    width: 100%;
+    transition: opacity 0.2s, transform 0.1s;
+    letter-spacing: 0.3px;
+    position: relative;
+    overflow: hidden;
+  }
+  .run-btn:hover { opacity: 0.9; }
+  .run-btn:active { transform: scale(0.99); }
+  .run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .run-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+    transform: translateX(-100%);
+  }
+  .run-btn.loading::after {
+    animation: shimmer 1.5s infinite;
+  }
+  @keyframes shimmer {
+    to { transform: translateX(100%); }
+  }
+
+  /* Right Panel */
+  .panel-right {
+    padding: 32px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  /* Tab Bar */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0;
+  }
+  .tab {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 10px 16px;
+    cursor: pointer;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    margin-bottom: -1px;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* Tab Panels */
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Empty State */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    gap: 16px;
+    opacity: 0.4;
+  }
+  .empty-icon { font-size: 48px; }
+  .empty-text { font-family: var(--mono); font-size: 12px; text-align: center; line-height: 1.8; }
+
+  /* Results */
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .result-card-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .result-card-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+  .result-card-body { padding: 20px; }
+
+  /* Transcript */
+  .transcript-text {
+    font-size: 16px;
+    line-height: 1.8;
+    color: var(--text);
+    margin-bottom: 20px;
+  }
+
+  .segments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+  .segments-list::-webkit-scrollbar { width: 4px; }
+  .segments-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .segment-item {
+    display: grid;
+    grid-template-columns: 80px 80px 1fr auto;
+    gap: 12px;
+    align-items: start;
+    padding: 10px 14px;
+    background: var(--surface2);
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+    border-left: 3px solid transparent;
+    transition: border-color 0.2s;
+  }
+  .segment-item:hover { border-left-color: var(--accent); }
+
+  .seg-time { color: var(--muted); }
+  .seg-speaker {
+    font-weight: 600;
+    font-size: 10px;
+    letter-spacing: 1px;
+  }
+  .speaker-colors { }
+  .SPEAKER_00 { color: var(--accent); }
+  .SPEAKER_01 { color: var(--accent2); }
+  .SPEAKER_02 { color: var(--accent3); }
+  .SPEAKER_03 { color: #ffcc6a; }
+
+  .seg-text { font-family: var(--sans); font-size: 13px; line-height: 1.5; }
+
+  .emotion-pill {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 100px;
+    border: 1px solid;
+    white-space: nowrap;
+    height: fit-content;
+  }
+  .emotion-happy { color: #ffcc6a; border-color: rgba(255,204,106,0.3); background: rgba(255,204,106,0.08); }
+  .emotion-neutral { color: var(--muted); border-color: rgba(107,107,128,0.3); background: rgba(107,107,128,0.08); }
+  .emotion-angry { color: var(--accent2); border-color: rgba(255,106,158,0.3); background: rgba(255,106,158,0.08); }
+  .emotion-sad { color: #6ab8ff; border-color: rgba(106,184,255,0.3); background: rgba(106,184,255,0.08); }
+  .emotion-fear { color: #d06aff; border-color: rgba(208,106,255,0.3); background: rgba(208,106,255,0.08); }
+  .emotion-surprise { color: var(--accent3); border-color: rgba(106,255,204,0.3); background: rgba(106,255,204,0.08); }
+  .emotion-disgust { color: #ff8c6a; border-color: rgba(255,140,106,0.3); background: rgba(255,140,106,0.08); }
+
+  /* Metrics row */
+  .metrics-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .metric-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .metric-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .metric-value {
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 600;
+  }
+  .metric-good { color: var(--accent3); }
+  .metric-warn { color: #ffcc6a; }
+  .metric-bad { color: var(--accent2); }
+  .metric-purple { color: var(--accent); }
+
+  /* Speaker chart */
+  .speaker-bars { display: flex; flex-direction: column; gap: 10px; }
+  .speaker-bar-item { display: flex; align-items: center; gap: 12px; }
+  .speaker-bar-label { font-family: var(--mono); font-size: 11px; width: 100px; }
+  .speaker-bar-track {
+    flex: 1;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .speaker-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 1s cubic-bezier(0.4,0,0.2,1);
+  }
+  .speaker-bar-dur { font-family: var(--mono); font-size: 11px; color: var(--muted); width: 50px; text-align: right; }
+
+  /* Emotion Distribution */
+  .emotion-dist { display: flex; flex-wrap: wrap; gap: 8px; }
+  .emotion-dist-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--surface2);
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .emotion-pct {
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  /* Raw JSON */
+  .json-view {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.8;
+    max-height: 500px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: #a8b8c8;
+  }
+  .json-view::-webkit-scrollbar { width: 4px; }
+  .json-view::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  .json-key { color: var(--accent); }
+  .json-str { color: var(--accent3); }
+  .json-num { color: #ffcc6a; }
+  .json-bool { color: var(--accent2); }
+
+  /* Progress */
+  .progress-section {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .progress-section.visible { display: block; }
+
+  .progress-stages {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .stage-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .stage-icon { width: 20px; text-align: center; }
+  .stage-name { flex: 1; color: var(--muted); }
+  .stage-name.active { color: var(--text); }
+  .stage-name.done { color: var(--accent3); }
+  .stage-time { color: var(--muted); font-size: 11px; }
+
+  .spinner {
+    display: inline-block;
+    width: 12px; height: 12px;
+    border: 2px solid rgba(124,106,255,0.2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Error */
+  .error-banner {
+    display: none;
+    background: rgba(255,106,158,0.08);
+    border: 1px solid rgba(255,106,158,0.3);
+    border-radius: 10px;
+    padding: 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent2);
+  }
+  .error-banner.visible { display: block; }
+
+  .copy-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .copy-btn:hover { color: var(--text); border-color: rgba(124,106,255,0.4); }
+
+  .timing-grid {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .timing-chip {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 4px 10px;
+    background: var(--surface2);
+    border-radius: 6px;
+    color: var(--muted);
+  }
+  .timing-chip span { color: var(--accent3); }
+</style>
+</head>
+<body>
+<div class="glow glow-1"></div>
+<div class="glow glow-2"></div>
+
+<header>
+  <div class="logo-mark">🎙</div>
+  <div>
+    <div class="logo-text">Lingo Speech Pipeline</div>
+    <div class="logo-sub">Transcription · Diarization · Emotion</div>
+  </div>
+  <div class="header-right">
+    <span class="badge badge-green" id="api-status">● API READY</span>
+    <span class="badge badge-purple" id="model-badge">WHISPER BASE</span>
+  </div>
+</header>
+
+<div class="app">
+  <!-- LEFT PANEL -->
+  <div class="panel-left">
+    <div>
+      <div class="section-label">Input Audio</div>
+      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+        <input type="file" id="fileInput" accept=".wav,.mp3,.m4a,.flac,.ogg,.opus,.webm">
+        <span class="upload-icon">🎵</span>
+        <div class="upload-title">Drop audio file here</div>
+        <div class="upload-sub">WAV · MP3 · M4A · FLAC · OGG · OPUS</div>
+      </div>
+
+      <div class="audio-preview" id="audioPreview">
+        <div class="audio-file-name" id="audioFileName"></div>
+        <audio controls id="audioPlayer"></audio>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Pipeline Configuration</div>
+
+      <div class="field-wrap" style="margin-bottom: 12px;">
+        <div class="section-label" style="margin-bottom: 0;">Language</div>
+        <select class="select-field" id="langSelect">
+          <option value="">Auto-detect</option>
+          <option value="ta" selected>Tamil (தமிழ்)</option>
+          <option value="hi">Hindi (हिंदी)</option>
+          <option value="en">English</option>
+          <option value="bn">Bengali (বাংলা)</option>
+          <option value="te">Telugu (తెలుగు)</option>
+          <option value="ta">Tamil (தமிழ்)</option>
+          <option value="mr">Marathi (मराठी)</option>
+          <option value="gu">Gujarati (ગુજરાતી)</option>
+          <option value="kn">Kannada (ಕನ್ನಡ)</option>
+          <option value="ml">Malayalam (മലയാളം)</option>
+          <option value="pa">Punjabi (ਪੰਜਾਬੀ)</option>
+          <option value="ur">Urdu (اردو)</option>
+        </select>
+      </div>
+
+      <div class="config-grid">
+        <label class="toggle-item active" id="toggle-diarize">
+          <input type="checkbox" checked id="cb-diarize">
+          <span class="toggle-dot"></span>
+          Diarization
+        </label>
+        <label class="toggle-item active" id="toggle-emotion">
+          <input type="checkbox" checked id="cb-emotion">
+          <span class="toggle-dot"></span>
+          Emotion
+        </label>
+        <label class="toggle-item active" id="toggle-denoise">
+          <input type="checkbox" checked id="cb-denoise">
+          <span class="toggle-dot"></span>
+          Denoise
+        </label>
+        <label class="toggle-item active" id="toggle-words">
+          <input type="checkbox" checked id="cb-words">
+          <span class="toggle-dot"></span>
+          Word Timestamps
+        </label>
+      </div>
+
+      <div class="field-wrap" style="margin-top: 12px;">
+        <div class="section-label" style="margin-bottom: 0;">Reference Text (for WER)</div>
+        <textarea
+          id="refText"
+          placeholder="Optional: paste reference transcription for WER/CER evaluation..."
+          style="background: var(--surface); border: 1px solid var(--border); color: var(--text);
+                 padding: 10px 12px; border-radius: 8px; font-family: var(--mono); font-size: 11px;
+                 width: 100%; resize: vertical; min-height: 60px; outline: none; line-height: 1.6;"
+        ></textarea>
+      </div>
+    </div>
+
+    <button class="run-btn" id="runBtn" disabled onclick="runPipeline()">
+      Run Pipeline
+    </button>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="panel-right">
+    <div class="error-banner" id="errorBanner"></div>
+
+    <div class="progress-section" id="progressSection">
+      <div class="section-label">Processing</div>
+      <div class="progress-stages" id="progressStages">
+        <div class="stage-item" id="stage-audio">
+          <div class="stage-icon">⏳</div>
+          <div class="stage-name">Audio Processing</div>
+          <div class="stage-time" id="t-audio"></div>
+        </div>
+        <div class="stage-item" id="stage-transcription">
+          <div class="stage-icon">⏸</div>
+          <div class="stage-name">Whisper Transcription</div>
+          <div class="stage-time" id="t-transcription"></div>
+        </div>
+        <div class="stage-item" id="stage-diarization">
+          <div class="stage-icon">⏸</div>
+          <div class="stage-name">Speaker Diarization</div>
+          <div class="stage-time" id="t-diarization"></div>
+        </div>
+        <div class="stage-item" id="stage-emotion">
+          <div class="stage-icon">⏸</div>
+          <div class="stage-name">Emotion Tagging</div>
+          <div class="stage-time" id="t-emotion"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div id="resultsSection" style="display:none;">
+      <div class="tabs">
+        <div class="tab active" onclick="showTab('transcript')">Transcript</div>
+        <div class="tab" onclick="showTab('diarization')">Diarization</div>
+        <div class="tab" onclick="showTab('emotion')">Emotion</div>
+        <div class="tab" onclick="showTab('metrics')">Metrics</div>
+        <div class="tab" onclick="showTab('json')">Raw JSON</div>
+      </div>
+
+      <!-- Transcript Tab -->
+      <div class="tab-panel active" id="tab-transcript">
+        <div style="margin-top: 20px;">
+          <div class="result-card">
+            <div class="result-card-header">
+              <span class="result-card-title">Full Transcript</span>
+              <button class="copy-btn" onclick="copyText()">Copy</button>
+            </div>
+            <div class="result-card-body">
+              <div class="transcript-text" id="transcriptText"></div>
+            </div>
+          </div>
+          <div class="result-card">
+            <div class="result-card-header">
+              <span class="result-card-title">Segments</span>
+              <span class="badge badge-purple" id="segCount">0 segments</span>
+            </div>
+            <div class="result-card-body" style="padding: 12px;">
+              <div class="segments-list" id="segmentsList"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Diarization Tab -->
+      <div class="tab-panel" id="tab-diarization">
+        <div style="margin-top: 20px;">
+          <div class="result-card">
+            <div class="result-card-header">
+              <span class="result-card-title">Speaker Analysis</span>
+            </div>
+            <div class="result-card-body">
+              <div id="speakerStats"></div>
+            </div>
+          </div>
+          <div class="result-card">
+            <div class="result-card-header">
+              <span class="result-card-title">Speaker Timeline</span>
+            </div>
+            <div class="result-card-body">
+              <div id="speakerTimeline"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Emotion Tab -->
+      <div class="tab-panel" id="tab-emotion">
+        <div style="margin-top: 20px;">
+          <div class="result-card">
+            <div class="result-card-header">
+              <span class="result-card-title">Emotion Distribution</span>
+            </div>
+            <div class="result-card-body">
+              <div id="emotionDist"></div>
+            </div>
+          </div>
+          <div class="result-card">
+            <div class="result-card-header">
+              <span class="result-card-title">Segment Emotions</span>
+            </div>
+            <div class="result-card-body" style="padding: 12px;">
+              <div class="segments-list" id="emotionSegments"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Metrics Tab -->
+      <div class="tab-panel" id="tab-metrics">
+        <div style="margin-top: 20px;">
+          <div class="result-card">
+            <div class="result-card-header">
+              <span class="result-card-title">Performance Metrics</span>
+            </div>
+            <div class="result-card-body">
+              <div class="metrics-row" id="metricsRow"></div>
+              <div class="timing-grid" id="timingGrid"></div>
+            </div>
+          </div>
+          <div class="result-card">
+            <div class="result-card-header">
+              <span class="result-card-title">Audio Quality</span>
+            </div>
+            <div class="result-card-body">
+              <div class="metrics-row" id="audioMetrics"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- JSON Tab -->
+      <div class="tab-panel" id="tab-json">
+        <div style="margin-top: 20px;">
+          <div class="result-card">
+            <div class="result-card-header">
+              <span class="result-card-title">Raw API Response</span>
+              <button class="copy-btn" onclick="copyJSON()">Copy JSON</button>
+            </div>
+            <div class="result-card-body" style="padding: 0;">
+              <div class="json-view" id="jsonView"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">🎙️</div>
+      <div class="empty-text">
+        Upload an audio file and configure<br>
+        the pipeline to get started.<br><br>
+        Supports Tamil · Hindi · Bengali · Telugu<br>
+        and 95+ other languages.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let rawResult = null;
+let audioFile = null;
+const API_BASE = window.location.origin;
+
+// ── File Handling ──────────────────────────────────────────────────────────────
+const fileInput = document.getElementById('fileInput');
+const uploadZone = document.getElementById('uploadZone');
+
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) handleFile(e.target.files[0]);
+});
+
+uploadZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  uploadZone.classList.add('dragover');
+});
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+
+function handleFile(file) {
+  audioFile = file;
+  const preview = document.getElementById('audioPreview');
+  const player = document.getElementById('audioPlayer');
+  const name = document.getElementById('audioFileName');
+  name.textContent = `${file.name}  ·  ${(file.size / 1024 / 1024).toFixed(1)} MB`;
+  player.src = URL.createObjectURL(file);
+  preview.classList.add('visible');
+  document.getElementById('runBtn').disabled = false;
+  document.getElementById('errorBanner').classList.remove('visible');
+}
+
+// ── Toggle Controls ────────────────────────────────────────────────────────────
+['diarize','emotion','denoise','words'].forEach(id => {
+  const el = document.getElementById(`toggle-${id}`);
+  const cb = document.getElementById(`cb-${id}`);
+  el.addEventListener('click', e => {
+    if (e.target === cb) return;
+    cb.checked = !cb.checked;
+    el.classList.toggle('active', cb.checked);
+  });
+});
+
+// ── Pipeline Execution ─────────────────────────────────────────────────────────
+async function runPipeline() {
+  if (!audioFile) return;
+
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true;
+  btn.textContent = 'Processing...';
+  btn.classList.add('loading');
+
+  document.getElementById('progressSection').classList.add('visible');
+  document.getElementById('resultsSection').style.display = 'none';
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('errorBanner').classList.remove('visible');
+
+  resetStages();
+
+  const formData = new FormData();
+  formData.append('file', audioFile);
+
+  const lang = document.getElementById('langSelect').value;
+  const diarize = document.getElementById('cb-diarize').checked;
+  const emotion = document.getElementById('cb-emotion').checked;
+  const denoise = document.getElementById('cb-denoise').checked;
+
+  let url = `${API_BASE}/api/pipeline?run_diarization=${diarize}&run_emotion=${emotion}&denoise=${denoise}`;
+  if (lang) url += `&language=${lang}`;
+
+  // Animate stages
+  setStage('audio', 'active');
+  const stageTimer = simulateStages(diarize, emotion);
+
+  try {
+    const resp = await fetch(url, { method: 'POST', body: formData });
+    clearInterval(stageTimer);
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.detail || `HTTP ${resp.status}`);
+    }
+
+    const data = await resp.json();
+    rawResult = data;
+
+    // Mark stages complete
+    ['audio','transcription','diarization','emotion'].forEach(s => {
+      if (data.timing?.[s]) setStage(s, 'done', `${data.timing[s]}s`);
+    });
+
+    setTimeout(() => renderResults(data), 400);
+
+  } catch (err) {
+    clearInterval(stageTimer);
+    showError(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Run Pipeline';
+    btn.classList.remove('loading');
+  }
+}
+
+function simulateStages(diarize, emotion) {
+  const stages = ['audio', 'transcription'];
+  if (diarize) stages.push('diarization');
+  if (emotion) stages.push('emotion');
+  let idx = 0;
+  return setInterval(() => {
+    if (idx > 0) setStage(stages[idx-1], 'done');
+    if (idx < stages.length) setStage(stages[idx], 'active');
+    idx++;
+    if (idx >= stages.length + 1) idx = stages.length;
+  }, 2000);
+}
+
+function setStage(name, state, time = '') {
+  const item = document.getElementById(`stage-${name}`);
+  if (!item) return;
+  const icon = item.querySelector('.stage-icon');
+  const label = item.querySelector('.stage-name');
+  const timeEl = document.getElementById(`t-${name}`);
+
+  if (state === 'active') {
+    icon.innerHTML = '<span class="spinner"></span>';
+    label.className = 'stage-name active';
+  } else if (state === 'done') {
+    icon.textContent = '✓';
+    label.className = 'stage-name done';
+    if (time && timeEl) timeEl.textContent = time;
+  } else {
+    icon.textContent = '⏸';
+    label.className = 'stage-name';
+  }
+}
+
+function resetStages() {
+  ['audio','transcription','diarization','emotion'].forEach(s => setStage(s, 'pending'));
+}
+
+// ── Render Results ─────────────────────────────────────────────────────────────
+function renderResults(data) {
+  document.getElementById('progressSection').classList.remove('visible');
+  document.getElementById('resultsSection').style.display = 'block';
+  showTab('transcript');
+
+  renderTranscript(data);
+  renderDiarization(data);
+  renderEmotion(data);
+  renderMetrics(data);
+  renderJSON(data);
+}
+
+function renderTranscript(data) {
+  const tx = data.transcription || {};
+  document.getElementById('transcriptText').textContent =
+    tx.text || '(no transcription)';
+
+  const segs = tx.segments || [];
+  document.getElementById('segCount').textContent = `${segs.length} segments`;
+
+  const list = document.getElementById('segmentsList');
+  list.innerHTML = segs.map(seg => {
+    const emotionClass = `emotion-${seg.emotion || 'neutral'}`;
+    const speakerClass = seg.speaker?.replace(' ', '_') || '';
+    return `
+      <div class="segment-item">
+        <div class="seg-time">${fmt(seg.start)} → ${fmt(seg.end)}</div>
+        <div class="seg-speaker ${speakerClass}">${seg.speaker || '—'}</div>
+        <div class="seg-text">${seg.text}</div>
+        ${seg.emotion ? `<span class="emotion-pill ${emotionClass}">${seg.emotion}</span>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function renderDiarization(data) {
+  const d = data.diarization;
+  if (!d) {
+    document.getElementById('speakerStats').innerHTML = '<div style="color:var(--muted); font-family:var(--mono); font-size:12px;">Diarization not run</div>';
+    return;
+  }
+
+  const colors = ['var(--accent)', 'var(--accent2)', 'var(--accent3)', '#ffcc6a'];
+  const totalDur = Object.values(d.speaker_durations || {}).reduce((a,b)=>a+b, 0);
+
+  document.getElementById('speakerStats').innerHTML = `
+    <div style="margin-bottom:16px;">
+      <span style="font-family:var(--mono);font-size:28px;font-weight:600;color:var(--accent);">${d.num_speakers}</span>
+      <span style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-left:8px;">SPEAKERS DETECTED</span>
+    </div>
+    <div class="speaker-bars">
+      ${Object.entries(d.speaker_durations || {}).map(([spk, dur], i) => `
+        <div class="speaker-bar-item">
+          <div class="speaker-bar-label" style="color:${colors[i % colors.length]}">${spk}</div>
+          <div class="speaker-bar-track">
+            <div class="speaker-bar-fill" style="width:${totalDur ? dur/totalDur*100 : 0}%; background:${colors[i % colors.length]};"></div>
+          </div>
+          <div class="speaker-bar-dur">${dur.toFixed(1)}s</div>
+        </div>`).join('')}
+    </div>`;
+
+  // Timeline (simple visual)
+  const turns = (d.turns || []).slice(0, 50);
+  const maxTime = turns.length ? Math.max(...turns.map(t => t.end)) : 1;
+  const speakers = [...new Set(turns.map(t => t.speaker))];
+
+  document.getElementById('speakerTimeline').innerHTML = `
+    <div style="position:relative; height: ${speakers.length * 28 + 20}px; margin-top:8px;">
+      ${speakers.map((spk, i) => `
+        <div style="position:absolute; top:${i*28}px; left:0; right:0; height:20px;">
+          <div style="position:absolute;font-family:var(--mono);font-size:10px;color:${colors[i%colors.length]};top:4px;left:0;width:90px">${spk}</div>
+          <div style="position:absolute;left:100px;right:0;top:4px;height:12px;background:var(--border);border-radius:3px;overflow:hidden;">
+            ${turns.filter(t=>t.speaker===spk).map(t=>`
+              <div style="position:absolute;left:${t.start/maxTime*100}%;width:${Math.max((t.end-t.start)/maxTime*100,0.5)}%;
+                height:100%;background:${colors[i%colors.length]};opacity:0.8;border-radius:2px;"></div>
+            `).join('')}
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function renderEmotion(data) {
+  const e = data.emotion;
+  if (!e) {
+    document.getElementById('emotionDist').innerHTML = '<div style="color:var(--muted); font-family:var(--mono); font-size:12px;">Emotion tagging not run</div>';
+    return;
+  }
+
+  const emotionColors = {
+    happy:'#ffcc6a', neutral:'var(--muted)', angry:'var(--accent2)',
+    sad:'#6ab8ff', fear:'#d06aff', surprise:'var(--accent3)', disgust:'#ff8c6a'
+  };
+  const dist = e.emotion_distribution || {};
+
+  document.getElementById('emotionDist').innerHTML = `
+    <div style="margin-bottom:16px;">
+      <span style="font-size:28px;">
+        ${{happy:'😊',neutral:'😐',angry:'😡',sad:'😢',fear:'😨',surprise:'😲',disgust:'🤢'}[e.dominant_emotion]||'🎭'}
+      </span>
+      <span style="font-family:var(--mono);font-size:20px;font-weight:600;margin-left:8px;color:${emotionColors[e.dominant_emotion]||'var(--accent)'}">
+        ${e.dominant_emotion?.toUpperCase()}
+      </span>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:8px;">DOMINANT</span>
+    </div>
+    <div class="emotion-dist">
+      ${Object.entries(dist).sort((a,b)=>b[1]-a[1]).map(([emo, pct]) => `
+        <div class="emotion-dist-item">
+          <div class="emotion-pct" style="color:${emotionColors[emo]||'var(--text)'}">${(pct*100).toFixed(0)}%</div>
+          <div style="font-size:12px;color:var(--muted)">${emo}</div>
+        </div>`).join('')}
+    </div>`;
+
+  const segs = (data.transcription?.segments || []).filter(s => s.emotion);
+  document.getElementById('emotionSegments').innerHTML = segs.map(seg => {
+    const cls = `emotion-${seg.emotion}`;
+    return `
+      <div class="segment-item">
+        <div class="seg-time">${fmt(seg.start)}</div>
+        <div class="seg-speaker" style="color:${emotionColors[seg.emotion]||'var(--muted)'}">${seg.emotion}</div>
+        <div class="seg-text">${seg.text}</div>
+        <span class="emotion-pill ${cls}">${seg.emotion}</span>
+      </div>`;
+  }).join('') || '<div style="color:var(--muted);font-family:var(--mono);font-size:12px;padding:8px;">No segments with emotion data</div>';
+}
+
+function renderMetrics(data) {
+  const tx = data.transcription || {};
+  const meta = data.audio || {};
+
+  const werColor = tx.wer === null || tx.wer === undefined ? '' :
+    tx.wer < 0.1 ? 'metric-good' : tx.wer < 0.3 ? 'metric-warn' : 'metric-bad';
+
+  const metrics = [
+    { label: 'Language', value: (tx.language || '?').toUpperCase(), cls: 'metric-purple' },
+    { label: 'RTF', value: tx.rtf != null ? `${tx.rtf.toFixed(2)}x` : '—', cls: tx.rtf < 1 ? 'metric-good' : 'metric-warn' },
+    { label: 'Duration', value: meta.duration_secs != null ? `${meta.duration_secs.toFixed(1)}s` : '—', cls: 'metric-purple' },
+    { label: 'Segments', value: (tx.segments || []).length, cls: 'metric-purple' },
+    ...(tx.wer != null ? [{ label: 'WER', value: tx.wer.toFixed(4), cls: werColor }] : []),
+    ...(tx.cer != null ? [{ label: 'CER', value: tx.cer.toFixed(4), cls: werColor }] : []),
+  ];
+
+  document.getElementById('metricsRow').innerHTML = metrics.map(m => `
+    <div class="metric-card">
+      <div class="metric-label">${m.label}</div>
+      <div class="metric-value ${m.cls}">${m.value}</div>
+    </div>`).join('');
+
+  document.getElementById('timingGrid').innerHTML = Object.entries(data.timing || {})
+    .map(([k,v]) => `<div class="timing-chip">${k} <span>${v}s</span></div>`).join('');
+
+  document.getElementById('audioMetrics').innerHTML = [
+    { label: 'Sample Rate', value: meta.sample_rate ? `${meta.sample_rate}Hz` : '—' },
+    { label: 'SNR', value: meta.snr_db != null ? `${meta.snr_db.toFixed(1)} dB` : '—',
+      cls: meta.snr_db > 20 ? 'metric-good' : meta.snr_db > 10 ? 'metric-warn' : 'metric-bad' },
+    { label: 'Loudness', value: meta.loudness_dbfs != null ? `${meta.loudness_dbfs.toFixed(1)} dBFS` : '—' },
+    { label: 'Format', value: (meta.format || '?').toUpperCase() },
+    { label: 'Size', value: meta.size_bytes ? `${(meta.size_bytes/1024/1024).toFixed(1)} MB` : '—' },
+  ].map(m => `
+    <div class="metric-card">
+      <div class="metric-label">${m.label}</div>
+      <div class="metric-value ${m.cls||'metric-purple'}">${m.value}</div>
+    </div>`).join('');
+}
+
+function renderJSON(data) {
+  document.getElementById('jsonView').innerHTML = syntaxHighlight(JSON.stringify(data, null, 2));
+}
+
+function syntaxHighlight(json) {
+  return json
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"([^"]+)":/g, '<span class="json-key">"$1"</span>:')
+    .replace(/: "([^"]*)"/g, ': <span class="json-str">"$1"</span>')
+    .replace(/: (\d+\.?\d*)/g, ': <span class="json-num">$1</span>')
+    .replace(/: (true|false|null)/g, ': <span class="json-bool">$1</span>');
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function fmt(secs) {
+  if (secs == null) return '--';
+  const m = Math.floor(secs / 60);
+  const s = (secs % 60).toFixed(1);
+  return m > 0 ? `${m}:${s.padStart(4,'0')}` : `${s}s`;
+}
+
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    const names = ['transcript','diarization','emotion','metrics','json'];
+    t.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`tab-${name}`)?.classList.add('active');
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorBanner');
+  el.textContent = `✗ Error: ${msg}`;
+  el.classList.add('visible');
+  document.getElementById('progressSection').classList.remove('visible');
+  document.getElementById('emptyState').style.display = 'flex';
+}
+
+function copyText() {
+  navigator.clipboard.writeText(document.getElementById('transcriptText').textContent);
+}
+function copyJSON() {
+  navigator.clipboard.writeText(JSON.stringify(rawResult, null, 2));
+}
+
+// ── Health check ───────────────────────────────────────────────────────────────
+fetch(`${API_BASE}/health`)
+  .then(r => r.json())
+  .then(d => {
+    document.getElementById('api-status').textContent = '● API READY';
+    document.getElementById('model-badge').textContent = `WHISPER ${(d.whisper_model || 'BASE').toUpperCase()}`;
+  })
+  .catch(() => {
+    document.getElementById('api-status').textContent = '● API OFFLINE';
+    document.getElementById('api-status').style.borderColor = 'rgba(255,106,158,0.3)';
+    document.getElementById('api-status').style.color = 'var(--accent2)';
+  });
+</script>
+</body>
+</html>
