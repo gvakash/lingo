@@ -1,0 +1,78 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: lingo-pipeline-api
+    ports:
+      - "8000:8000"
+    environment:
+      - WHISPER_MODEL=base
+      - WHISPER_DEVICE=cpu
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER=redis://redis:6379/0
+      - CELERY_BACKEND=redis://redis:6379/1
+      - PYANNOTE_TOKEN=${PYANNOTE_TOKEN:-}
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./data:/app/data
+      - whisper_cache:/root/.cache/whisper
+      - huggingface_cache:/root/.cache/huggingface
+    depends_on:
+      - redis
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: lingo-pipeline-worker
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
+    environment:
+      - WHISPER_MODEL=base
+      - WHISPER_DEVICE=cpu
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER=redis://redis:6379/0
+      - CELERY_BACKEND=redis://redis:6379/1
+    volumes:
+      - ./data:/app/data
+      - whisper_cache:/root/.cache/whisper
+      - huggingface_cache:/root/.cache/huggingface
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: lingo-pipeline-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  flower:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: lingo-pipeline-flower
+    command: celery -A app.tasks.celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER=redis://redis:6379/0
+      - CELERY_BACKEND=redis://redis:6379/1
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+volumes:
+  whisper_cache:
+  huggingface_cache:
+  redis_data:
